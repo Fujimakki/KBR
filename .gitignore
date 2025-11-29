@@ -1,0 +1,28 @@
+# Build directories
+build/
+_build/
+Debug/
+Release/
+
+# IDE-specific files (adjust based on your IDE)
+.vscode/
+.idea/
+*.suo
+*.user
+*.bak
+.metadata/
+.settings/
+.mxproject
+.project
+.cproject
+*.launch
+
+# Temporary files
+*.o
+*.d
+*.elf
+*.bin
+*.hex
+*.map
+*.log
+compile_commands.json
