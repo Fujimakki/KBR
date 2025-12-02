@@ -28,7 +28,7 @@
 /* USER CODE BEGIN Includes */
 
 #include "fft_mag.h"
-#include "custom_flags.h"
+#include <stdint.h>
 
 /* USER CODE END Includes */
 
@@ -37,8 +37,10 @@
 
 typedef enum
 {
-  RAW = 0x51,
-  FFT = 0x52
+	RAW = 0x51,	// Raw data from ADC
+	FFT = 0x52,	// Calculated fft magnitudes
+
+	AWS = 0x31	// New AVRG_WINDOW_SIZE value
 } PacketType;
 
 /* USER CODE END PTD */
@@ -71,7 +73,8 @@ typedef enum
 
 /* USER CODE BEGIN PV */
 
-
+// The size of the ADC averaging window
+volatile uint16_t AVRG_WINDOW_SIZE = 1;
 
 /* USER CODE END PV */
 
@@ -101,15 +104,15 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 
-  static uint16_t adcDmaBuf[ADC_DMA_BUF_SIZE];
-  static float32_t rawData[ADC_DMA_BUF_SIZE];
+	static uint16_t adcDmaBuf[ADC_DMA_BUF_SIZE];
+	static float32_t rawData[ADC_DMA_BUF_SIZE];
 
-  static float32_t magnitudes[UART_RAW_PAYLOAD_FLOATS];
-  static uint8_t txPacket[UART_RAW_PACKET_SIZE];
-  txPacket[0] = 0xAA;
+	static float32_t magnitudes[UART_RAW_PAYLOAD_FLOATS];
+	static uint8_t txPacket[UART_RAW_PACKET_SIZE];
+	txPacket[0] = 0xAA;
 
-  arm_rfft_fast_instance_f32 S;
-  arm_rfft_fast_init_f32(&S, FFT_SIZE);
+	arm_rfft_fast_instance_f32 S;
+	arm_rfft_fast_init_f32(&S, FFT_SIZE);
 
 
   /* USER CODE END 1 */
@@ -142,40 +145,40 @@ int main(void)
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
-  LL_TIM_EnableAllOutputs(TIM1);
-  LL_TIM_CC_EnableChannel(TIM1, LL_TIM_CHANNEL_CH1);
-  LL_TIM_EnableCounter(TIM1);
+	LL_TIM_EnableAllOutputs(TIM1);
+	LL_TIM_CC_EnableChannel(TIM1, LL_TIM_CHANNEL_CH1);
+	LL_TIM_EnableCounter(TIM1);
 
 
-  LL_ADC_Enable(ADC1);
+	LL_ADC_Enable(ADC1);
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  while (1)
-  {
+	while (1)
+	{
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 
-	readAdc(adcDmaBuf, ADC_DMA_BUF_SIZE);
+		readAdc(adcDmaBuf, ADC_DMA_BUF_SIZE);
 
-	for(uint16_t i = 0; i < ADC_DMA_BUF_SIZE; i++)
-	{
-	  rawData[i] = adcDmaBuf[i] * QUANT_STEP;
+		for(uint16_t i = 0; i < ADC_DMA_BUF_SIZE; i++)
+		{
+			rawData[i] = adcDmaBuf[i] * QUANT_STEP;
+		}
+
+		buildPacket((uint32_t*)rawData, txPacket, RAW);
+		sendUart(txPacket, UART_RAW_PACKET_SIZE);
+
+		fftMagCalc(&S, rawData, magnitudes);
+
+		buildPacket((uint32_t*)magnitudes, txPacket, FFT);
+		sendUart(txPacket, UART_FFT_PACKET_SIZE);
 	}
-
-	buildPacket((uint32_t*)rawData, txPacket, RAW);
-	sendUart(txPacket, UART_RAW_PACKET_SIZE);
-
-	fftMagCalc(&S, rawData, magnitudes);
-
-	buildPacket((uint32_t*)magnitudes, txPacket, FFT);
-	sendUart(txPacket, UART_FFT_PACKET_SIZE);
-  }
 
   /* USER CODE END 3 */
 }
@@ -231,73 +234,80 @@ uint32_t crcCalc(const uint32_t* const payload, uint16_t pldSize)
 {
 	LL_CRC_ResetCRCCalculationUnit(CRC);
 
-  for(uint16_t i = 0; i < pldSize; i++)
-  {
-	uint32_t data = payload[i];
-	LL_CRC_FeedData32(CRC, __RBIT(data));
-  }
+	for(uint16_t i = 0; i < pldSize; i++)
+	{
+		uint32_t data = payload[i];
+		LL_CRC_FeedData32(CRC, __RBIT(data));
+	}
 
-  uint32_t crc = ~( __RBIT( LL_CRC_ReadData32(CRC) ) );
-  return crc;
+	uint32_t crc = ~( __RBIT( LL_CRC_ReadData32(CRC) ) );
+	return crc;
 }
 
 void buildPacket(uint32_t* const pldData, uint8_t* const packet, const PacketType type)
 {
-  packet[1] = type;
+	packet[1] = type;
 
-  uint16_t pldSizeBytes;
-  uint16_t pldSizeFloats;
-  switch(type)
-  {
-  case RAW:
-	pldSizeBytes = UART_RAW_PAYLOAD_BYTES;
-	pldSizeFloats = UART_RAW_PAYLOAD_FLOATS;
-	break;
+	uint16_t pldSizeBytes;
+	uint16_t pldSizeFloats;
+	switch(type)
+	{
+	case RAW:
+		pldSizeBytes = UART_RAW_PAYLOAD_BYTES;
+		pldSizeFloats = UART_RAW_PAYLOAD_FLOATS;
+		break;
 
-  case FFT:
-	pldSizeBytes = UART_FFT_PAYLOAD_BYTES;
-	pldSizeFloats = UART_FFT_PAYLOAD_FLOATS;
-	break;
+	case FFT:
+		pldSizeBytes = UART_FFT_PAYLOAD_BYTES;
+		pldSizeFloats = UART_FFT_PAYLOAD_FLOATS;
+		break;
 
-  default:
-	pldSizeBytes = 0;
-	pldSizeFloats = 0;
-	break;
-  }
-  memcpy(&packet[2], pldData, pldSizeBytes);
+	default:
+		pldSizeBytes = 0;
+		pldSizeFloats = 0;
+		break;
+	}
+	memcpy(&packet[2], pldData, pldSizeBytes);
 
-  uint32_t crc = crcCalc(pldData, pldSizeFloats);
+	uint32_t crc = crcCalc(pldData, pldSizeFloats);
 
-  memcpy(&packet[2 + pldSizeBytes], &crc, sizeof(uint32_t));
+	memcpy(&packet[2 + pldSizeBytes], &crc, sizeof(uint32_t));
 }
 
 void readAdc(uint16_t* const buffer, uint16_t size)
 {
-  if(LL_ADC_IsEnabled(ADC1) == 0)
-  {
-    LL_ADC_Enable(ADC1);
-  }
+	if(LL_ADC_IsEnabled(ADC1) == 0)
+	{
+		LL_ADC_Enable(ADC1);
+	}
 
-  for (int i = 0; i < size; i++)
-  {
-    LL_ADC_REG_StartConversionSWStart(ADC1);
+	for (int i = 0; i < size; i++)
+	{
+		buffer[i] = 0;
 
-    while( !LL_ADC_IsActiveFlag_EOCS(ADC1) );
+		for(int j = 0; j < AVRG_WINDOW_SIZE; j++)
+		{
+			LL_ADC_REG_StartConversionSWStart(ADC1);
 
-    buffer[i] = LL_ADC_REG_ReadConversionData12(ADC1);
-  }
+			while( !LL_ADC_IsActiveFlag_EOCS(ADC1) );
+
+			buffer[i] += LL_ADC_REG_ReadConversionData12(ADC1);
+		}
+
+		buffer[i] /= AVRG_WINDOW_SIZE;
+	}
 }
 
 void sendUart(uint8_t* buffer, uint16_t size)
 {
-  for (uint16_t i = 0; i < size; i++)
-  {
-    while (!LL_USART_IsActiveFlag_TXE(USART2));
+	for (uint16_t i = 0; i < size; i++)
+	{
+		while (!LL_USART_IsActiveFlag_TXE(USART2));
 
-    LL_USART_TransmitData8(USART2, buffer[i]);
-  }
+		LL_USART_TransmitData8(USART2, buffer[i]);
+	}
 
-  while (!LL_USART_IsActiveFlag_TC(USART2));
+	while (!LL_USART_IsActiveFlag_TC(USART2));
 }
 
 /* USER CODE END 4 */

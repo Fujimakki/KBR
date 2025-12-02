@@ -1,0 +1,3 @@
+set(CMSIS_DSP
+	${CMAKE_SOURCE_DIR}/Drivers/CMSIS/DSP
+)

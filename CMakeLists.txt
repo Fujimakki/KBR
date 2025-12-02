@@ -12,10 +12,11 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
 
+include(./cmake/build-sources.cmake)
 
 # Define the build type
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "Debug")
+	set(CMAKE_BUILD_TYPE "Debug")
 endif()
 
 # Set the project name
@@ -39,22 +40,30 @@ add_subdirectory(cmake/stm32cubemx)
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined library search paths
+				# Add user defined library search paths
+)
+
+file(GLOB_RECURSE DSP_SOURCES
+				${CMSIS_DSP}/Source/*.c
 )
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user sources here
+				# Add user sources here
+				${PROJECT_SOURCE_DIR}/Core/Src/fft_mag.c
+				${DSP_SOURCES}
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined include paths
+				# Add user defined include paths
+				${CMSIS_DSP}/Include/
+				${CMSIS_DSP}/PrivateInclude/
 )
 
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined symbols
+				# Add user defined symbols
 )
 
 # Remove wrong libob.a library dependency when using cpp files
@@ -62,7 +71,7 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
-    stm32cubemx
+				stm32cubemx
 
-    # Add user defined libraries
+				# Add user defined libraries
 )

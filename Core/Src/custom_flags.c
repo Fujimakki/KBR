@@ -6,9 +6,10 @@
  */
 
 #include "custom_flags.h"
+#include <stdbool.h>
 
-volatile uint8_t adcDataReady = 0;
-volatile uint8_t usartBusy = 0;
+volatile bool adcDataReady = 0;
+volatile bool usartBusy = 0;
 
 
 /*

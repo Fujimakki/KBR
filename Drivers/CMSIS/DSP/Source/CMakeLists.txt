@@ -2,6 +2,7 @@ cmake_minimum_required (VERSION 3.14)
 cmake_policy(SET CMP0077 NEW)
 project(CMSISDSP)
 
+SET(ROOT ${CMAKE_SOURCE_DIR}/Drivers)
 # DSP Sources
 SET(DSP ${ROOT}/CMSIS/DSP)
 
@@ -9,7 +10,7 @@ list(APPEND CMAKE_MODULE_PATH ${DSP}/Source)
 list(APPEND CMAKE_MODULE_PATH ${DSP})
 
 
-include(configDsp)
+include(configLib)
 
 
 option(NEON "Neon acceleration" OFF)
@@ -199,108 +200,108 @@ option(ARM_CFFT_RADIX4_Q31   "deprecated q31 radix4 cfft"       OFF)
 add_library(CMSISDSP INTERFACE)
 
 if (BASICMATH)
-  add_subdirectory(BasicMathFunctions)
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPBasicMath)
+	add_subdirectory(BasicMathFunctions)
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPBasicMath)
 endif()
 
 if (COMPLEXMATH)
-  add_subdirectory(ComplexMathFunctions)
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPComplexMath)
+	add_subdirectory(ComplexMathFunctions)
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPComplexMath)
 endif()
 
 if (QUATERNIONMATH)
-  add_subdirectory(QuaternionMathFunctions)
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPQuaternionMath)
+	add_subdirectory(QuaternionMathFunctions)
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPQuaternionMath)
 endif()
 
 if (CONTROLLER)
-  add_subdirectory(ControllerFunctions)
-  # Fast tables inclusion is allowed
-  if (CONFIGTABLE)
-    target_compile_definitions(CMSISDSPController PUBLIC ARM_FAST_ALLOW_TABLES)
-  endif()
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPController)
+	add_subdirectory(ControllerFunctions)
+	# Fast tables inclusion is allowed
+	if (CONFIGTABLE)
+		target_compile_definitions(CMSISDSPController PUBLIC ARM_FAST_ALLOW_TABLES)
+	endif()
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPController)
 endif()
 
 if (FASTMATH)
-  add_subdirectory(FastMathFunctions)
-  # Fast tables inclusion is allowed
-  if (CONFIGTABLE)
-    target_compile_definitions(CMSISDSPFastMath PUBLIC ARM_FAST_ALLOW_TABLES)
-  endif()
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPFastMath)
+	add_subdirectory(FastMathFunctions)
+	# Fast tables inclusion is allowed
+	if (CONFIGTABLE)
+		target_compile_definitions(CMSISDSPFastMath PUBLIC ARM_FAST_ALLOW_TABLES)
+	endif()
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPFastMath)
 endif()
 
 if (FILTERING)
-  add_subdirectory(FilteringFunctions)
-  # Fast tables inclusion is allowed
-  if (CONFIGTABLE)
-    target_compile_definitions(CMSISDSPFiltering PUBLIC ARM_FAST_ALLOW_TABLES)
-  endif()
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPFiltering)
+	add_subdirectory(FilteringFunctions)
+	# Fast tables inclusion is allowed
+	if (CONFIGTABLE)
+		target_compile_definitions(CMSISDSPFiltering PUBLIC ARM_FAST_ALLOW_TABLES)
+	endif()
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPFiltering)
 endif()
 
 if (MATRIX)
-  add_subdirectory(MatrixFunctions)
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPMatrix)
+	add_subdirectory(MatrixFunctions)
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPMatrix)
 endif()
 
 if (STATISTICS)
-  add_subdirectory(StatisticsFunctions)
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPStatistics)
+	add_subdirectory(StatisticsFunctions)
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPStatistics)
 endif()
 
 if (SUPPORT)
-  add_subdirectory(SupportFunctions)
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPSupport)
+	add_subdirectory(SupportFunctions)
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPSupport)
 endif()
 
 if (TRANSFORM)
-  add_subdirectory(TransformFunctions)
-  # FFT tables inclusion is allowed
-  if (CONFIGTABLE)
-    target_compile_definitions(CMSISDSPTransform PUBLIC ARM_FFT_ALLOW_TABLES)
-  endif()
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPTransform)
+	add_subdirectory(TransformFunctions)
+	# FFT tables inclusion is allowed
+	if (CONFIGTABLE)
+		target_compile_definitions(CMSISDSPTransform PUBLIC ARM_FFT_ALLOW_TABLES)
+	endif()
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPTransform)
 endif()
 
 if (FILTERING OR CONTROLLER OR FASTMATH OR TRANSFORM OR SVM OR DISTANCE)
-  add_subdirectory(CommonTables)
-  if (TRANSFORM)
-    # FFT tables inclusion is allowed
-    if (CONFIGTABLE)
-      target_compile_definitions(CMSISDSPCommon PUBLIC ARM_FFT_ALLOW_TABLES)
-    endif()
-  endif()
-  if (FILTERING OR CONTROLLER OR FASTMATH)
-    # Select which tables to include
-    if (CONFIGTABLE)
-      target_compile_definitions(CMSISDSPCommon PUBLIC ARM_FAST_ALLOW_TABLES)
-    endif()
-  endif()
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPCommon)
-  # Common project is adding ComputeLibrary tables used by SVM and Distance
-  # when NEon is ON.
+	add_subdirectory(CommonTables)
+	if (TRANSFORM)
+		# FFT tables inclusion is allowed
+		if (CONFIGTABLE)
+			target_compile_definitions(CMSISDSPCommon PUBLIC ARM_FFT_ALLOW_TABLES)
+		endif()
+	endif()
+	if (FILTERING OR CONTROLLER OR FASTMATH)
+		# Select which tables to include
+		if (CONFIGTABLE)
+			target_compile_definitions(CMSISDSPCommon PUBLIC ARM_FAST_ALLOW_TABLES)
+		endif()
+	endif()
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPCommon)
+	# Common project is adding ComputeLibrary tables used by SVM and Distance
+	# when NEon is ON.
 endif()
 
 if (SVM)
-  add_subdirectory(SVMFunctions)
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPSVM)
+	add_subdirectory(SVMFunctions)
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPSVM)
 endif()
 
 if (BAYES)
-  add_subdirectory(BayesFunctions)
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPBayes)
+	add_subdirectory(BayesFunctions)
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPBayes)
 endif()
 
 if (DISTANCE)
-  add_subdirectory(DistanceFunctions)
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPDistance)
+	add_subdirectory(DistanceFunctions)
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPDistance)
 endif()
 
 if (INTERPOLATION)
-  add_subdirectory(InterpolationFunctions)
-  target_link_libraries(CMSISDSP INTERFACE CMSISDSPInterpolation)
+	add_subdirectory(InterpolationFunctions)
+	target_link_libraries(CMSISDSP INTERFACE CMSISDSPInterpolation)
 endif()
 
 ### Includes

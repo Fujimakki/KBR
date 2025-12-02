@@ -16,6 +16,9 @@ Release/
 .project
 .cproject
 *.launch
+.nvimrc
+.vimrc
+.exrc
 
 # Temporary files
 *.o
