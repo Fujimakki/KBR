@@ -1,25 +1,11 @@
 /* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2025 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
 #include "crc.h"
+#include "dma.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -29,18 +15,19 @@
 
 #include "fft_mag.h"
 #include <stdint.h>
+#include <string.h>
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
-typedef enum
+typedef enum PacketType
 {
-	RAW = 0x51,	// Raw data from ADC
-	FFT = 0x52,	// Calculated fft magnitudes
+	AWS = 0x31,	// New AVRG_WINDOW_SIZE value
 
-	AWS = 0x31	// New AVRG_WINDOW_SIZE value
+	RAW = 0x51,	// Raw data from ADC
+	FFT = 0x52	// Calculated fft magnitudes
 } PacketType;
 
 /* USER CODE END PTD */
@@ -48,19 +35,24 @@ typedef enum
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define ADC_DMA_BUF_SIZE FFT_SIZE
-
 #define QUANT_STEP (3.3f / 4096.0f)
 
-#define UART_CRC_BYTES 4
+#define UART_HEADER_BYTES 2
+#define UART_CRC_BYTES sizeof(uint32_t)
+
+#define UART_AWS_PAYLOAD_BYTES 2
+#define UART_AWS_PAYLOAD_FLOATS 1 // It needs at least 1 32-bit(4-byte) sized container
 
 #define UART_RAW_PAYLOAD_FLOATS FFT_SIZE
 #define UART_RAW_PAYLOAD_BYTES (UART_RAW_PAYLOAD_FLOATS * sizeof(float32_t))
-#define UART_RAW_PACKET_SIZE (2 + UART_RAW_PAYLOAD_BYTES + UART_CRC_BYTES)
+#define UART_RAW_PACKET_SIZE (UART_HEADER_BYTES + UART_RAW_PAYLOAD_BYTES + UART_CRC_BYTES)
 
 #define UART_FFT_PAYLOAD_FLOATS (FFT_SIZE / 2)
 #define UART_FFT_PAYLOAD_BYTES (UART_FFT_PAYLOAD_FLOATS * sizeof(float32_t))
-#define UART_FFT_PACKET_SIZE (2 + UART_FFT_PAYLOAD_BYTES + UART_CRC_BYTES)
+#define UART_FFT_PACKET_SIZE (UART_HEADER_BYTES + UART_FFT_PAYLOAD_BYTES + UART_CRC_BYTES)
+
+#define ADC_DMA_BUF_SIZE FFT_SIZE
+#define UART_RX_DMA_BUF_SIZE (UART_HEADER_BYTES + UART_AWS_PAYLOAD_BYTES + UART_CRC_BYTES)
 
 /* USER CODE END PD */
 
@@ -88,6 +80,8 @@ void buildPacket(uint32_t* const pldData, uint8_t* const packet, const PacketTyp
 void readAdc(uint16_t* const buffer, uint16_t size);
 void sendUart(uint8_t* buffer, uint16_t size);
 
+void readUart(uint8_t* buffer, uint16_t size);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -105,9 +99,11 @@ int main(void)
   /* USER CODE BEGIN 1 */
 
 	static uint16_t adcDmaBuf[ADC_DMA_BUF_SIZE];
-	static float32_t rawData[ADC_DMA_BUF_SIZE];
+  static uint8_t uartRxDmaBuf[UART_RX_DMA_BUF_SIZE];
 
+	static float32_t rawData[ADC_DMA_BUF_SIZE];
 	static float32_t magnitudes[UART_RAW_PAYLOAD_FLOATS];
+
 	static uint8_t txPacket[UART_RAW_PACKET_SIZE];
 	txPacket[0] = 0xAA;
 
@@ -139,11 +135,17 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_ADC1_Init();
   MX_USART2_UART_Init();
   MX_CRC_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
+
+  LL_DMA_SetMemoryAddress(DMA1, LL_DMA_STREAM_5, (uint32_t)(uintptr_t)uartRxDmaBuf);
+  LL_DMA_SetDataLength(DMA1, LL_DMA_STREAM_5, UART_RX_DMA_BUF_SIZE);
+  LL_DMA_EnableStream(DMA1, LL_DMA_STREAM_5);
+
 
 	LL_TIM_EnableAllOutputs(TIM1);
 	LL_TIM_CC_EnableChannel(TIM1, LL_TIM_CHANNEL_CH1);
@@ -252,6 +254,11 @@ void buildPacket(uint32_t* const pldData, uint8_t* const packet, const PacketTyp
 	uint16_t pldSizeFloats;
 	switch(type)
 	{
+  case AWS:
+    pldSizeBytes = UART_AWS_PAYLOAD_BYTES;
+    pldSizeFloats = UART_AWS_PAYLOAD_FLOATS;
+    break;
+
 	case RAW:
 		pldSizeBytes = UART_RAW_PAYLOAD_BYTES;
 		pldSizeFloats = UART_RAW_PAYLOAD_FLOATS;
@@ -267,6 +274,7 @@ void buildPacket(uint32_t* const pldData, uint8_t* const packet, const PacketTyp
 		pldSizeFloats = 0;
 		break;
 	}
+
 	memcpy(&packet[2], pldData, pldSizeBytes);
 
 	uint32_t crc = crcCalc(pldData, pldSizeFloats);
@@ -310,6 +318,30 @@ void sendUart(uint8_t* buffer, uint16_t size)
 	while (!LL_USART_IsActiveFlag_TC(USART2));
 }
 
+void readUart(uint8_t* buffer, uint16_t size)
+{
+	uint8_t pktType;
+	memcpy(&pktType, buffer + 1, 1);
+
+  uint16_t data;
+	memcpy(&data, buffer + UART_HEADER_BYTES, UART_AWS_PAYLOAD_BYTES);
+
+	uint32_t crc;
+	memcpy(&crc, buffer + UART_HEADER_BYTES + UART_AWS_PAYLOAD_BYTES, UART_CRC_BYTES);
+
+	uint32_t currentCrc = crcCalc((uint32_t*)&data, 1);
+	if(currentCrc != crc)
+	{
+		return;
+	}
+	
+	if(pktType == AWS)
+	{
+		AVRG_WINDOW_SIZE = data;
+	}
+
+	sendUart(buffer, size);
+}
 /* USER CODE END 4 */
 
 /**

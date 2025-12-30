@@ -8,14 +8,18 @@
 #ifndef INC_CUSTOM_FLAGS_H_
 #define INC_CUSTOM_FLAGS_H_
 
-#include <stdint.h>
+#include <stdbool.h>
 
 void setAdcDataReady(void);
 void resetAdcDataReady(void);
-uint8_t isAdcDataReady(void);
+bool isAdcDataReady(void);
 
 void setUsartBusy(void);
 void resetUsartBusy(void);
-uint8_t isUsartBusy(void);
+bool isUsartBusy(void);
+
+void setUsartNewData(void);
+void resetUsartNewData(void);
+bool isUsartNewData(void);
 
 #endif /* INC_CUSTOM_FLAGS_H_ */
