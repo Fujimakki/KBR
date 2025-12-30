@@ -23,8 +23,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-#include "custom_flags.h"
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -225,7 +223,11 @@ void USART2_IRQHandler(void)
   {
     LL_USART_ClearFlag_IDLE(USART2);
     LL_DMA_DisableStream(DMA1, LL_DMA_STREAM_5);
-    setUsartNewData();
+    //setUsartNewData();
+
+    extern uint8_t uartRxDmaBuf[];
+    extern const uint16_t USART_RX_DMA_BUF_SIZE;
+    readUart(uartRxDmaBuf, USART_RX_DMA_BUF_SIZE);
   }
 
   /* USER CODE END USART2_IRQn 0 */

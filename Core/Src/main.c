@@ -66,7 +66,11 @@ typedef enum PacketType
 /* USER CODE BEGIN PV */
 
 // The size of the ADC averaging window
+
 volatile uint16_t AVRG_WINDOW_SIZE = 1;
+
+const uint16_t USART_RX_DMA_BUF_SIZE = UART_RX_DMA_BUF_SIZE;
+uint8_t uartRxDmaBuf[UART_RX_DMA_BUF_SIZE];
 
 /* USER CODE END PV */
 
@@ -79,8 +83,6 @@ void buildPacket(uint32_t* const pldData, uint8_t* const packet, const PacketTyp
 
 void readAdc(uint16_t* const buffer, uint16_t size);
 void sendUart(uint8_t* buffer, uint16_t size);
-
-void readUart(uint8_t* buffer, uint16_t size);
 
 /* USER CODE END PFP */
 
@@ -99,7 +101,6 @@ int main(void)
   /* USER CODE BEGIN 1 */
 
 	static uint16_t adcDmaBuf[ADC_DMA_BUF_SIZE];
-  static uint8_t uartRxDmaBuf[UART_RX_DMA_BUF_SIZE];
 
 	static float32_t rawData[ADC_DMA_BUF_SIZE];
 	static float32_t magnitudes[UART_RAW_PAYLOAD_FLOATS];
@@ -320,6 +321,8 @@ void sendUart(uint8_t* buffer, uint16_t size)
 
 void readUart(uint8_t* buffer, uint16_t size)
 {
+	// resetUsartNewData();
+
 	uint8_t pktType;
 	memcpy(&pktType, buffer + 1, 1);
 
