@@ -7,6 +7,9 @@ cmake_minimum_required(VERSION 3.22)
 # User is free to modify the file as much as necessary
 #
 
+#unset(CMAKE_LINKER_TYPE CACHE)
+#set(CMAKE_LINKER_TYPE "" CACHE STRING "" FORCE)
+
 # Setup compiler settings
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -43,8 +46,10 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 				# Add user defined library search paths
 )
 
-file(GLOB_RECURSE DSP_SOURCES
-				${CMSIS_DSP}/Source/*.c
+file(GLOB DSP_SOURCES
+				${CMSIS_DSP}/Source/TransformFunctions/*.c		# cfft and rfft functions
+				${CMSIS_DSP}/Source/ComplexMathFunctions/*.c
+				${CMSIS_DSP}/Source/CommonTables/*.c
 )
 
 # Add sources to executable
@@ -74,4 +79,12 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 				stm32cubemx
 
 				# Add user defined libraries
+)
+
+add_custom_target(flash
+    COMMAND openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program ${CMAKE_BINARY_DIR}/${PROJECT_NAME}.elf verify reset exit"
+    DEPENDS ${PROJECT_NAME}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Flashing firmware to STM32..."
+    USES_TERMINAL
 )

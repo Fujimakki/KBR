@@ -19,6 +19,8 @@ Release/
 .nvimrc
 .vimrc
 .exrc
+.cache/
+KBR\ Debug.cfg
 
 # Temporary files
 *.o

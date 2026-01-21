@@ -20,7 +20,11 @@ void fftMagCalc(arm_rfft_fast_instance_f32 *S, float32_t* const inp, float32_t* 
   arm_rfft_fast_f32(S, inp, fftOutp, 0); /* Calculate real FFT of adc_input_f32 to fft_output */
 
   outp[0] = fabsf(fftOutp[0]) / FFT_SIZE;
-  outp[FFT_SIZE / 2 - 1] = fabsf(fftOutp[1]);
+  outp[FFT_SIZE / 2 - 1] = fabsf(fftOutp[1]) / FFT_SIZE;
 
   arm_cmplx_mag_f32(&(fftOutp[2]), &(outp[1]), FFT_SIZE / 2 - 2); /* Get a magnitude from the FFT */
+  for(int i = 1; i < FFT_SIZE / 2 - 1; i++)
+  {
+    outp[i] *= 2.0f / FFT_SIZE;
+  }
 }

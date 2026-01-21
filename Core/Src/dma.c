@@ -52,5 +52,21 @@ void MX_DMA_Init(void)
 
 /* USER CODE BEGIN 2 */
 
+void DMA_Stream_Stop(DMA_TypeDef* DMAx, uint32_t Stream)
+{
+  LL_DMA_DisableStream(DMAx, Stream);
+  while(LL_DMA_IsEnabledStream(DMAx, Stream)) {}
+
+  }
+
+void DMA_Stream_Start(DMA_TypeDef* DMAx, uint32_t Stream, uint32_t BUF_SIZE)
+{
+  WRITE_REG(DMA1->HIFCR , 0xFFFFFFFFUL);
+  LL_DMA_SetDataLength(DMAx, Stream, BUF_SIZE);
+
+  LL_DMA_EnableStream(DMAx, Stream);
+  while(!LL_DMA_IsEnabledStream(DMA1, LL_DMA_STREAM_5)) {}
+}
+
 /* USER CODE END 2 */
 

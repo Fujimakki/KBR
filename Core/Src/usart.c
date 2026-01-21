@@ -80,6 +80,7 @@ void MX_USART2_UART_Init(void)
 
   /* USER CODE BEGIN USART2_Init 1 */
 
+
   /* USER CODE END USART2_Init 1 */
   USART_InitStruct.BaudRate = 2250000;
   USART_InitStruct.DataWidth = LL_USART_DATAWIDTH_8B;
@@ -93,6 +94,9 @@ void MX_USART2_UART_Init(void)
   LL_USART_Enable(USART2);
   /* USER CODE BEGIN USART2_Init 2 */
 
+  LL_USART_EnableDMAReq_RX(USART2);
+
+  LL_USART_ClearFlag_IDLE(USART2);
   LL_USART_EnableIT_IDLE(USART2);
 
   /* USER CODE END USART2_Init 2 */

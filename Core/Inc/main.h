@@ -73,6 +73,7 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 
+void sendUart(uint8_t* buffer, uint16_t size);
 void readUart(uint8_t* buffer, uint16_t size);
 
 /* USER CODE END EFP */

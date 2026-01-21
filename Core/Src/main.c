@@ -22,12 +22,11 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
-typedef enum PacketType
-{
-	AWS = 0x31,	// New AVRG_WINDOW_SIZE value
+typedef enum PacketType {
+  AWS = 0x31, // New AVRG_WINDOW_SIZE value
 
-	RAW = 0x51,	// Raw data from ADC
-	FFT = 0x52	// Calculated fft magnitudes
+  RAW = 0x51, // Raw data from ADC
+  FFT = 0x52  // Calculated fft magnitudes
 } PacketType;
 
 /* USER CODE END PTD */
@@ -52,7 +51,7 @@ typedef enum PacketType
 #define UART_FFT_PACKET_SIZE (UART_HEADER_BYTES + UART_FFT_PAYLOAD_BYTES + UART_CRC_BYTES)
 
 #define ADC_DMA_BUF_SIZE FFT_SIZE
-#define UART_RX_DMA_BUF_SIZE (UART_HEADER_BYTES + UART_AWS_PAYLOAD_BYTES + UART_CRC_BYTES)
+#define UART_RX_DMA_BUF_SIZE ((UART_HEADER_BYTES + UART_AWS_PAYLOAD_BYTES + UART_CRC_BYTES) * 2)
 
 /* USER CODE END PD */
 
@@ -78,11 +77,11 @@ uint8_t uartRxDmaBuf[UART_RX_DMA_BUF_SIZE];
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
-uint32_t crcCalc(const uint32_t* const payload, uint16_t pldSize);
-void buildPacket(uint32_t* const pldData, uint8_t* const packet, const PacketType type);
+uint32_t crcCalc(const uint32_t *const payload, uint16_t pldSize);
+void buildPacket(const uint32_t *const pldData, uint8_t *const packet,
+                 const PacketType type);
 
-void readAdc(uint16_t* const buffer, uint16_t size);
-void sendUart(uint8_t* buffer, uint16_t size);
+void readAdc(uint16_t *const buffer, uint16_t size);
 
 /* USER CODE END PFP */
 
@@ -100,17 +99,16 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 
-	static uint16_t adcDmaBuf[ADC_DMA_BUF_SIZE];
+  static uint16_t adcDmaBuf[ADC_DMA_BUF_SIZE];
 
-	static float32_t rawData[ADC_DMA_BUF_SIZE];
-	static float32_t magnitudes[UART_RAW_PAYLOAD_FLOATS];
+  static float32_t rawData[ADC_DMA_BUF_SIZE];
+  static float32_t magnitudes[UART_RAW_PAYLOAD_FLOATS];
 
-	static uint8_t txPacket[UART_RAW_PACKET_SIZE];
-	txPacket[0] = 0xAA;
+  static uint8_t txPacket[UART_RAW_PACKET_SIZE];
+  txPacket[0] = 0xAA;
 
-	arm_rfft_fast_instance_f32 S;
-	arm_rfft_fast_init_f32(&S, FFT_SIZE);
-
+  arm_rfft_fast_instance_f32 S;
+  arm_rfft_fast_init_f32(&S, FFT_SIZE);
 
   /* USER CODE END 1 */
 
@@ -143,45 +141,42 @@ int main(void)
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
-  LL_DMA_SetMemoryAddress(DMA1, LL_DMA_STREAM_5, (uint32_t)(uintptr_t)uartRxDmaBuf);
+  LL_DMA_SetPeriphAddress(DMA1, LL_DMA_STREAM_5, LL_USART_DMA_GetRegAddr(USART2));
+  LL_DMA_SetMemoryAddress(DMA1, LL_DMA_STREAM_5, (uint32_t)uartRxDmaBuf);
   LL_DMA_SetDataLength(DMA1, LL_DMA_STREAM_5, UART_RX_DMA_BUF_SIZE);
   LL_DMA_EnableStream(DMA1, LL_DMA_STREAM_5);
 
+  LL_TIM_EnableAllOutputs(TIM1);
+  LL_TIM_CC_EnableChannel(TIM1, LL_TIM_CHANNEL_CH1);
+  LL_TIM_EnableCounter(TIM1);
 
-	LL_TIM_EnableAllOutputs(TIM1);
-	LL_TIM_CC_EnableChannel(TIM1, LL_TIM_CHANNEL_CH1);
-	LL_TIM_EnableCounter(TIM1);
-
-
-	LL_ADC_Enable(ADC1);
+  LL_ADC_Enable(ADC1);
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-	while (1)
-	{
+  while (1) {
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 
-		readAdc(adcDmaBuf, ADC_DMA_BUF_SIZE);
+    readAdc(adcDmaBuf, ADC_DMA_BUF_SIZE);
 
-		for(uint16_t i = 0; i < ADC_DMA_BUF_SIZE; i++)
-		{
-			rawData[i] = adcDmaBuf[i] * QUANT_STEP;
-		}
+    for (uint16_t i = 0; i < ADC_DMA_BUF_SIZE; i++) {
+      rawData[i] = adcDmaBuf[i] * QUANT_STEP;
+    }
 
-		buildPacket((uint32_t*)rawData, txPacket, RAW);
-		sendUart(txPacket, UART_RAW_PACKET_SIZE);
+    buildPacket((uint32_t *)rawData, txPacket, RAW);
+    sendUart(txPacket, UART_RAW_PACKET_SIZE);
 
-		fftMagCalc(&S, rawData, magnitudes);
+    fftMagCalc(&S, rawData, magnitudes);
 
-		buildPacket((uint32_t*)magnitudes, txPacket, FFT);
-		sendUart(txPacket, UART_FFT_PACKET_SIZE);
-	}
+    buildPacket((uint32_t *)magnitudes, txPacket, FFT);
+    sendUart(txPacket, UART_FFT_PACKET_SIZE);
+  }
 
   /* USER CODE END 3 */
 }
@@ -233,118 +228,111 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
-uint32_t crcCalc(const uint32_t* const payload, uint16_t pldSize)
-{
-	LL_CRC_ResetCRCCalculationUnit(CRC);
+uint32_t crcCalc(const uint32_t *const payload, uint16_t pldSize) {
+  LL_CRC_ResetCRCCalculationUnit(CRC);
 
-	for(uint16_t i = 0; i < pldSize; i++)
-	{
-		uint32_t data = payload[i];
-		LL_CRC_FeedData32(CRC, __RBIT(data));
-	}
+  for (uint16_t i = 0; i < pldSize; i++) {
+    uint32_t data = payload[i];
+    LL_CRC_FeedData32(CRC, __RBIT(data));
+  }
 
-	uint32_t crc = ~( __RBIT( LL_CRC_ReadData32(CRC) ) );
-	return crc;
+  uint32_t crc = ~(__RBIT(LL_CRC_ReadData32(CRC)));
+  return crc;
 }
 
-void buildPacket(uint32_t* const pldData, uint8_t* const packet, const PacketType type)
+void buildPacket(const uint32_t *const pldData, uint8_t *const packet, const PacketType type)
 {
-	packet[1] = type;
+  packet[1] = type;
 
-	uint16_t pldSizeBytes;
-	uint16_t pldSizeFloats;
-	switch(type)
-	{
-  case AWS:
-    pldSizeBytes = UART_AWS_PAYLOAD_BYTES;
-    pldSizeFloats = UART_AWS_PAYLOAD_FLOATS;
-    break;
+  uint16_t pldSizeBytes;
+  uint16_t pldSizeFloats;
+  switch (type)
+  {
+    case RAW:
+    {
+      pldSizeBytes = UART_RAW_PAYLOAD_BYTES;
+      pldSizeFloats = UART_RAW_PAYLOAD_FLOATS;
+      break;
+    }
 
-	case RAW:
-		pldSizeBytes = UART_RAW_PAYLOAD_BYTES;
-		pldSizeFloats = UART_RAW_PAYLOAD_FLOATS;
-		break;
+    case FFT:
+    {
+      pldSizeBytes = UART_FFT_PAYLOAD_BYTES;
+      pldSizeFloats = UART_FFT_PAYLOAD_FLOATS;
+      break;
+    }
 
-	case FFT:
-		pldSizeBytes = UART_FFT_PAYLOAD_BYTES;
-		pldSizeFloats = UART_FFT_PAYLOAD_FLOATS;
-		break;
+    default:
+    {
+      pldSizeBytes = 0;
+      pldSizeFloats = 0;
+      break;
+    }
+  }
 
-	default:
-		pldSizeBytes = 0;
-		pldSizeFloats = 0;
-		break;
-	}
+  memcpy(&packet[2], pldData, pldSizeBytes);
 
-	memcpy(&packet[2], pldData, pldSizeBytes);
+  uint32_t crc = crcCalc(pldData, pldSizeFloats);
 
-	uint32_t crc = crcCalc(pldData, pldSizeFloats);
-
-	memcpy(&packet[2 + pldSizeBytes], &crc, sizeof(uint32_t));
+  memcpy(&packet[2 + pldSizeBytes], &crc, sizeof(uint32_t));
 }
 
-void readAdc(uint16_t* const buffer, uint16_t size)
-{
-	if(LL_ADC_IsEnabled(ADC1) == 0)
-	{
-		LL_ADC_Enable(ADC1);
-	}
+void readAdc(uint16_t *const buffer, uint16_t size) {
+  if (LL_ADC_IsEnabled(ADC1) == 0) {
+    LL_ADC_Enable(ADC1);
+  }
 
-	for (int i = 0; i < size; i++)
-	{
-		buffer[i] = 0;
+  for (int i = 0; i < size; i++)
+  {
+    buffer[i] = 0;
 
-		for(int j = 0; j < AVRG_WINDOW_SIZE; j++)
-		{
-			LL_ADC_REG_StartConversionSWStart(ADC1);
+    for (int j = 0; j < AVRG_WINDOW_SIZE; j++)
+    {
+      LL_ADC_REG_StartConversionSWStart(ADC1);
 
-			while( !LL_ADC_IsActiveFlag_EOCS(ADC1) );
+      while(!LL_ADC_IsActiveFlag_EOCS(ADC1)) {}
 
-			buffer[i] += LL_ADC_REG_ReadConversionData12(ADC1);
-		}
-
-		buffer[i] /= AVRG_WINDOW_SIZE;
-	}
+      buffer[i] += LL_ADC_REG_ReadConversionData12(ADC1);
+    }
+    buffer[i] /= AVRG_WINDOW_SIZE;
+  }
 }
 
-void sendUart(uint8_t* buffer, uint16_t size)
-{
-	for (uint16_t i = 0; i < size; i++)
-	{
-		while (!LL_USART_IsActiveFlag_TXE(USART2));
+void sendUart(uint8_t *buffer, uint16_t size) {
+  for (uint16_t i = 0; i < size; i++) {
+    while(!LL_USART_IsActiveFlag_TXE(USART2)) {}
 
-		LL_USART_TransmitData8(USART2, buffer[i]);
-	}
+    LL_USART_TransmitData8(USART2, buffer[i]);
+  }
 
-	while (!LL_USART_IsActiveFlag_TC(USART2));
+  while(!LL_USART_IsActiveFlag_TC(USART2)) {}
 }
 
-void readUart(uint8_t* buffer, uint16_t size)
+void readUart(uint8_t *buffer, uint16_t size)
 {
-	// resetUsartNewData();
-
-	uint8_t pktType;
-	memcpy(&pktType, buffer + 1, 1);
+  uint8_t pktType;
+  memcpy(&pktType, buffer + 1, 1);
 
   uint16_t data;
-	memcpy(&data, buffer + UART_HEADER_BYTES, UART_AWS_PAYLOAD_BYTES);
+  memcpy(&data, buffer + UART_HEADER_BYTES, UART_AWS_PAYLOAD_BYTES);
+  uint32_t paddedData = (uint32_t)data;
 
-	uint32_t crc;
-	memcpy(&crc, buffer + UART_HEADER_BYTES + UART_AWS_PAYLOAD_BYTES, UART_CRC_BYTES);
+  uint32_t crc;
+  memcpy(&crc, buffer + UART_HEADER_BYTES + UART_AWS_PAYLOAD_BYTES, UART_CRC_BYTES);
 
-	uint32_t currentCrc = crcCalc((uint32_t*)&data, 1);
-	if(currentCrc != crc)
-	{
-		return;
-	}
-	
-	if(pktType == AWS)
-	{
-		AVRG_WINDOW_SIZE = data;
-	}
+  uint32_t currentCrc = crcCalc(&paddedData, 1);
+  if (currentCrc != crc)
+  {
+    return;
+  }
 
-	sendUart(buffer, size);
+  if (pktType == AWS) {
+    AVRG_WINDOW_SIZE = data;
+  }
+
+  sendUart(uartRxDmaBuf, size);
 }
+
 /* USER CODE END 4 */
 
 /**
@@ -356,8 +344,7 @@ void Error_Handler(void)
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
-  while (1)
-  {
+  while (1) {
   }
   /* USER CODE END Error_Handler_Debug */
 }
@@ -372,8 +359,9 @@ void Error_Handler(void)
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* User can add his own implementation to report the file name and line
+     number, ex: printf("Wrong parameters value: file %s on line %d\r\n", file,
+     line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

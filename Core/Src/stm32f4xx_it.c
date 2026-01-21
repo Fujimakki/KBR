@@ -23,6 +23,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include "dma.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -221,13 +223,19 @@ void USART2_IRQHandler(void)
 
   if(LL_USART_IsActiveFlag_IDLE(USART2))
   {
+    DMA_Stream_Stop(DMA1, LL_DMA_STREAM_5);
+
     LL_USART_ClearFlag_IDLE(USART2);
-    LL_DMA_DisableStream(DMA1, LL_DMA_STREAM_5);
-    //setUsartNewData();
+    if(LL_USART_IsActiveFlag_ORE(USART2))
+    {
+      LL_USART_ClearFlag_ORE(USART2);
+    }
 
     extern uint8_t uartRxDmaBuf[];
     extern const uint16_t USART_RX_DMA_BUF_SIZE;
     readUart(uartRxDmaBuf, USART_RX_DMA_BUF_SIZE);
+
+    DMA_Stream_Start(DMA1, LL_DMA_STREAM_5, USART_RX_DMA_BUF_SIZE);
   }
 
   /* USER CODE END USART2_IRQn 0 */
