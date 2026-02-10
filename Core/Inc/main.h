@@ -49,7 +49,10 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-#include "custom_flags.h"
+#include "fft_mag.h"
+
+#include <stdlib.h>
+#include <stdbool.h>
 
 /* USER CODE END Includes */
 
@@ -73,16 +76,9 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 
-void sendUart(uint8_t* buffer, uint16_t size);
-void readUart(uint8_t* buffer, uint16_t size);
-
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define B1_Pin LL_GPIO_PIN_13
-#define B1_GPIO_Port GPIOC
-#define LD2_Pin LL_GPIO_PIN_5
-#define LD2_GPIO_Port GPIOA
 #define TMS_Pin LL_GPIO_PIN_13
 #define TMS_GPIO_Port GPIOA
 #define TCK_Pin LL_GPIO_PIN_14

@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 
 #include "dma.h"
+#include "usart.h"
 
 /* USER CODE END Includes */
 
@@ -215,6 +216,19 @@ void DMA1_Stream5_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles DMA1 stream6 global interrupt.
+  */
+void DMA1_Stream6_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Stream6_IRQn 0 */
+
+  /* USER CODE END DMA1_Stream6_IRQn 0 */
+  /* USER CODE BEGIN DMA1_Stream6_IRQn 1 */
+
+  /* USER CODE END DMA1_Stream6_IRQn 1 */
+}
+
+/**
   * @brief This function handles USART2 global interrupt.
   */
 void USART2_IRQHandler(void)
@@ -231,17 +245,59 @@ void USART2_IRQHandler(void)
       LL_USART_ClearFlag_ORE(USART2);
     }
 
-    extern uint8_t uartRxDmaBuf[];
-    extern const uint16_t USART_RX_DMA_BUF_SIZE;
-    readUart(uartRxDmaBuf, USART_RX_DMA_BUF_SIZE);
+    extern const uint8_t UART_RX_DMA_BUF_SIZE;
+    uint8_t* uartRxDmaBuf = (uint8_t*)calloc(UART_RX_DMA_BUF_SIZE, sizeof(uint8_t));
+    if(readUart(uartRxDmaBuf, UART_RX_DMA_BUF_SIZE))
+    {
+      sendUart((uint32_t*)uartRxDmaBuf, UART_RX_DMA_BUF_SIZE, AWS);
+    }
+    free(uartRxDmaBuf);
 
-    DMA_Stream_Start(DMA1, LL_DMA_STREAM_5, USART_RX_DMA_BUF_SIZE);
+    DMA_Stream_Start(DMA1, LL_DMA_STREAM_5, UART_RX_DMA_BUF_SIZE);
   }
 
   /* USER CODE END USART2_IRQn 0 */
   /* USER CODE BEGIN USART2_IRQn 1 */
 
   /* USER CODE END USART2_IRQn 1 */
+}
+
+/**
+  * @brief This function handles DMA2 stream0 global interrupt.
+  */
+void DMA2_Stream0_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA2_Stream0_IRQn 0 */
+  extern bool is_fft_ready;
+
+  if(LL_DMA_IsActiveFlag_TC0(DMA2) && is_fft_ready)
+  {
+    extern const float QUANT_STEP;
+    extern const uint16_t ADC_DMA_BUF_SIZE;
+    extern uint16_t adcDmaBuf[];
+
+    sendUart((uint32_t*) adcDmaBuf, ADC_DMA_BUF_SIZE, RAW);
+
+    extern float32_t arrFAdc[];
+    for(uint16_t i = 0; i < ADC_DMA_BUF_SIZE / 2; i++)
+    {
+      arrFAdc[i] = QUANT_STEP * adcDmaBuf[i];
+    }
+
+    LL_DMA_ClearFlag_TC0(DMA2);
+    is_fft_ready = false;
+  }
+
+  /* USER CODE END DMA2_Stream0_IRQn 0 */
+  /* USER CODE BEGIN DMA2_Stream0_IRQn 1 */
+
+  if(LL_DMA_IsActiveFlag_TC6(DMA1))
+  {
+    LL_DMA_DisableStream(DMA1, LL_DMA_STREAM_6);
+    LL_DMA_ClearFlag_TC6(DMA1);
+  }
+
+  /* USER CODE END DMA2_Stream0_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */

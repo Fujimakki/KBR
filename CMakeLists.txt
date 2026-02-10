@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.22)
-
 #
 # This file is generated only once,
 # and is not re-generated if converter is called multiple times.
@@ -7,8 +6,8 @@ cmake_minimum_required(VERSION 3.22)
 # User is free to modify the file as much as necessary
 #
 
-#unset(CMAKE_LINKER_TYPE CACHE)
-#set(CMAKE_LINKER_TYPE "" CACHE STRING "" FORCE)
+unset(CMAKE_LINKER_TYPE CACHE)
+set(CMAKE_LINKER_TYPE "" CACHE STRING "" FORCE)
 
 # Setup compiler settings
 set(CMAKE_C_STANDARD 11)
@@ -33,7 +32,7 @@ project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
 
 # Enable CMake support for ASM and C languages
-enable_language(C ASM)
+enable_language(C	CXX ASM)
 
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
