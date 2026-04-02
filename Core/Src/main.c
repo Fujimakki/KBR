@@ -35,18 +35,25 @@
 /* USER CODE BEGIN PV */
 
 // The size of the ADC averaging window
-const float QUANT_STEP = 3.3f / FFT_SIZE;
-const uint16_t ADC_DMA_BUF_SIZE = FFT_SIZE * 2;
-const uint8_t UART_RX_DMA_BUF_SIZE = 8; // TODO Find a way to calculate the value
 
-volatile uint16_t AVRG_WINDOW_SIZE = 1;
+uint16_t DMA_ADC_buffer[UART_ADC_PAYLOAD_SIZE << 1];
+const size_t DMA_ADC_BUFFER_SIZE = UART_ADC_PAYLOAD_SIZE << 1;
 
-bool is_fft_ready = false;
+static UART_ADC_TxPacket ADC_txPacket = { .header = { UART_PREHEADER, UART_HEADER_RAW } };
+static const uint32_t ADC_TX_PACKET_SIZE = sizeof(ADC_txPacket);
+uint16_t* const ADC_payload = ADC_txPacket.payload;
 
-uint16_t adcDmaBuf[FFT_SIZE * 2];
-float32_t arrFAdc[FFT_SIZE];
+static UART_FFT_TxPacket FFT_txPacket = { .header = { UART_PREHEADER, UART_HEADER_FFT } };
+static const uint32_t FFT_TX_PACKET_SIZE = sizeof(FFT_txPacket);
 
-arm_rfft_fast_instance_f32 S;
+static const float32_t QUANT_STEP = 3.3 / ((1 << 12) - 1);
+static float32_t ADC_voltData[UART_ADC_PAYLOAD_SIZE];
+
+volatile bool readyRaw = false;
+
+#ifdef DBG
+uint32_t delta_time[5];
+#endif // DBG
 
 /* USER CODE END PV */
 
@@ -70,6 +77,7 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 
+  arm_rfft_fast_instance_f32 S;
   arm_rfft_fast_init_f32(&S, FFT_SIZE);
 
   /* USER CODE END 1 */
@@ -92,6 +100,12 @@ int main(void)
 
   /* USER CODE BEGIN SysInit */
 
+#ifdef DBG
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CYCCNT = 0;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+#endif // DBG
+
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -103,20 +117,18 @@ int main(void)
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
-  LL_DMA_ConfigAddresses(
-    DMA2,
-    LL_DMA_STREAM_0,
-    LL_ADC_DMA_GetRegAddr(ADC1, LL_ADC_DMA_REG_REGULAR_DATA),
-    (uint32_t)adcDmaBuf,
-    LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
-  LL_DMA_SetMemory1Address(DMA2, LL_DMA_STREAM_0, (uint32_t)(adcDmaBuf + FFT_SIZE));
-  LL_DMA_EnableIT_TC(DMA2, LL_DMA_STREAM_0);
+  LL_DMA_SetMemoryAddress(DMA2, LL_DMA_STREAM_0, (uint32_t)DMA_ADC_buffer);
+  LL_DMA_SetDataLength(DMA2, LL_DMA_STREAM_0, DMA_ADC_BUFFER_SIZE);
 
-  LL_TIM_EnableAllOutputs(TIM1);
-  LL_TIM_CC_EnableChannel(TIM1, LL_TIM_CHANNEL_CH1);
-  LL_TIM_EnableCounter(TIM1);
+  DMA_startStream(DMA2, LL_DMA_STREAM_0, 0);
 
   LL_ADC_Enable(ADC1);
+  LL_mDelay(1);
+
+  if(LL_ADC_REG_IsTriggerSourceSWStart(ADC1))
+  {
+    LL_ADC_REG_StartConversionSWStart(ADC1);
+  }
 
   /* USER CODE END 2 */
 
@@ -124,11 +136,48 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
   while (1) {
+    static volatile bool readyFft = false;
 
-    if(is_fft_ready)
+    if(readyRaw)
     {
-      fftMagCalc(&S, arrFAdc);
-      sendUart((uint32_t*)arrFAdc, FFT_SIZE, FFT);
+      uint32_t primask_bit = __get_PRIMASK(); // Remeber the state of primask
+      __disable_irq();  // Disable interrupts
+
+      UART_send((uint8_t*)(&ADC_txPacket), ADC_TX_PACKET_SIZE);
+
+      if(!readyFft)
+      {
+        for(uint32_t i = 0; i < UART_FFT_PAYLOAD_SIZE; i++)
+        {
+          ADC_voltData[i] = ADC_txPacket.payload[i << 1] * QUANT_STEP;
+          ADC_voltData[UART_FFT_PAYLOAD_SIZE + i] = ADC_txPacket.payload[(i << 1) + 1] * QUANT_STEP;
+        }
+        readyFft = true;
+      }
+
+      readyRaw = false;
+
+      LL_DMA_ClearFlag_HT0(DMA2);
+      LL_DMA_ClearFlag_TC0(DMA2);
+
+      if(!primask_bit)
+      {
+        __enable_irq(); // Enable interrupts if they were enabled before the function
+      }
+    }
+
+    if(readyFft)
+    {
+      fftMagCalc(&S, ADC_voltData, FFT_txPacket.payload);
+      fftMagCalc(&S, ADC_voltData + FFT_SIZE, FFT_txPacket.payload + (FFT_SIZE >> 1));
+      /*for(int i = 0; i < FFT_SIZE; i++)
+      {
+        float value = (float)i + 1.0f;
+        memcpy(&FFT_txPacket.payload[(FFT_SIZE >> 1) + i], &value, sizeof(value));
+      }*/
+      UART_send((uint8_t*)(&FFT_txPacket), FFT_TX_PACKET_SIZE);
+
+      readyFft = false;
     }
 
     /* USER CODE END WHILE */

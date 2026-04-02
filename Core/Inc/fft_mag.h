@@ -11,7 +11,7 @@ extern "C" {
 
 #define FFT_SIZE 4096
 
-void fftMagCalc(arm_rfft_fast_instance_f32 *S, float32_t* const inp);
+void fftMagCalc(arm_rfft_fast_instance_f32 *S, float32_t* const inp, float32_t* const outp);
 
 #ifdef __cplusplus
 }

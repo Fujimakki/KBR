@@ -74,6 +74,10 @@ void MX_TIM1_Init(void)
   LL_TIM_BDTR_Init(TIM1, &TIM_BDTRInitStruct);
   /* USER CODE BEGIN TIM1_Init 2 */
 
+  LL_TIM_EnableAllOutputs(TIM1);
+  LL_TIM_CC_EnableChannel(TIM1, LL_TIM_CHANNEL_CH1);
+  LL_TIM_EnableCounter(TIM1);
+
   /* USER CODE END TIM1_Init 2 */
   LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOA);
     /**TIM1 GPIO Configuration

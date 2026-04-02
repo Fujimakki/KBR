@@ -51,8 +51,8 @@ extern "C" {
 
 #include "fft_mag.h"
 
-#include <stdlib.h>
-#include <stdbool.h>
+#include "stdlib.h"
+#include "stdbool.h"
 
 /* USER CODE END Includes */
 

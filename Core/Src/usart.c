@@ -1,7 +1,7 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    usart.cpp
+  * @file    usart.c
   * @brief   This file provides code for the configuration
   *          of the USART instances.
   ******************************************************************************
@@ -22,8 +22,7 @@
 
 /* USER CODE BEGIN 0 */
 
-#include "RxPacket.hpp"
-#include "TxPacket.hpp"
+#include "dma.h"
 
 /* USER CODE END 0 */
 
@@ -57,25 +56,6 @@ void MX_USART2_UART_Init(void)
   LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* USART2 DMA Init */
-
-  /* USART2_RX Init */
-  LL_DMA_SetChannelSelection(DMA1, LL_DMA_STREAM_5, LL_DMA_CHANNEL_4);
-
-  LL_DMA_SetDataTransferDirection(DMA1, LL_DMA_STREAM_5, LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
-
-  LL_DMA_SetStreamPriorityLevel(DMA1, LL_DMA_STREAM_5, LL_DMA_PRIORITY_LOW);
-
-  LL_DMA_SetMode(DMA1, LL_DMA_STREAM_5, LL_DMA_MODE_NORMAL);
-
-  LL_DMA_SetPeriphIncMode(DMA1, LL_DMA_STREAM_5, LL_DMA_PERIPH_NOINCREMENT);
-
-  LL_DMA_SetMemoryIncMode(DMA1, LL_DMA_STREAM_5, LL_DMA_MEMORY_INCREMENT);
-
-  LL_DMA_SetPeriphSize(DMA1, LL_DMA_STREAM_5, LL_DMA_PDATAALIGN_BYTE);
-
-  LL_DMA_SetMemorySize(DMA1, LL_DMA_STREAM_5, LL_DMA_MDATAALIGN_BYTE);
-
-  LL_DMA_DisableFifoMode(DMA1, LL_DMA_STREAM_5);
 
   /* USART2_TX Init */
   LL_DMA_SetChannelSelection(DMA1, LL_DMA_STREAM_6, LL_DMA_CHANNEL_4);
@@ -115,16 +95,10 @@ void MX_USART2_UART_Init(void)
   LL_USART_Enable(USART2);
   /* USER CODE BEGIN USART2_Init 2 */
 
-  extern const uint8_t UART_RX_DMA_BUF_SIZE;
-  LL_DMA_ConfigAddresses(DMA1, LL_DMA_STREAM_5, LL_USART_DMA_GetRegAddr(USART2), UART_RX_DMA_BUF_SIZE, LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
-  LL_USART_EnableDMAReq_RX(USART2);
-
   LL_DMA_SetPeriphAddress(DMA1, LL_DMA_STREAM_6, LL_USART_DMA_GetRegAddr(USART2));
-  LL_DMA_EnableIT_TC(DMA1, LL_DMA_STREAM_6);
+  //LL_DMA_EnableIT_TC(DMA1, LL_DMA_STREAM_6);
   LL_DMA_DisableStream(DMA1, LL_DMA_STREAM_6);
 
-  LL_USART_ClearFlag_IDLE(USART2);
-  LL_USART_EnableIT_IDLE(USART2);
 
   /* USER CODE END USART2_Init 2 */
 
@@ -132,28 +106,66 @@ void MX_USART2_UART_Init(void)
 
 /* USER CODE BEGIN 1 */
 
-void sendUart(uint32_t* buffer, uint16_t size, uint8_t type)
+uint32_t CRC_calc(const uint32_t *const payload, uint16_t pldSize)
 {
-  TxPacket pcktBuilder(type);
-  pcktBuilder.writeData(reinterpret_cast<uint16_t*>(buffer));
+  LL_CRC_ResetCRCCalculationUnit(CRC);
+
+  for (uint16_t i = 0; i < pldSize; i++) {
+    uint32_t data = payload[i];
+    LL_CRC_FeedData32(CRC, __RBIT(data));
+  }
+
+  uint32_t crc = ~(__RBIT(LL_CRC_ReadData32(CRC)));
+  return crc;
 }
 
-bool readUart(uint8_t *buffer, uint16_t size)
+
+void UART_send(uint8_t* const packet, uint16_t bytesCount)
 {
-  auto parsedData = RxPacket::parseData(buffer);
+  uint32_t primask_bit = __get_PRIMASK(); // Remeber the state of primask
+  __disable_irq();  // Disable interrupts
 
-  if(!parsedData.is_parsed)
+  uint32_t crcValue = CRC_calc((uint32_t* const)(packet + 2), (bytesCount - 6) / sizeof(uint32_t));
+  memcpy(packet + bytesCount - sizeof(crcValue), &crcValue, sizeof(crcValue));
+
+#ifdef DBG
+  extern uint32_t delta_time[];
+  static uint8_t dt_counter = 0;
+  delta_time[dt_counter % 4] = DWT->CYCCNT;
+#endif // DBG
+
+  while(LL_DMA_IsEnabledStream(DMA1, LL_DMA_STREAM_6)) {}
+
+#ifdef DBG
+  delta_time[dt_counter + 1 % 4] = DWT->CYCCNT - delta_time[dt_counter % 4];
+  dt_counter++;
+#endif // DBG
+
+  LL_DMA_ClearFlag_TC6(DMA1);
+  LL_DMA_ClearFlag_HT6(DMA1);
+  LL_DMA_ClearFlag_TE6(DMA1);
+
+  LL_DMA_SetMemoryAddress(DMA1, LL_DMA_STREAM_6, (uint32_t)packet);
+
+  LL_USART_EnableDMAReq_TX(USART2);
+
+  DMA_resetAllIT(DMA1);
+  DMA_startStream(DMA1, LL_DMA_STREAM_6, bytesCount);
+
+#ifdef DBG
+  DWT->CYCCNT = delta_time[4] = 0;
+#endif // DBG
+
+  while(!LL_USART_IsActiveFlag_TC(USART2)) {}
+
+#ifdef DBG
+  delta_time[4] = DWT->CYCCNT;
+#endif // DBG
+
+  if(!primask_bit)
   {
-    return false;
+    __enable_irq(); // Enable interrupts if they were enabled before the function
   }
-
-  if(parsedData.type == RxPacket::RxPacketType::AWS)
-  {
-    extern volatile uint16_t AVRG_WINDOW_SIZE;
-    AVRG_WINDOW_SIZE = parsedData.value;
-  }
-
-  return true;
 }
 
 /* USER CODE END 1 */

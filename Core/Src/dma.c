@@ -45,9 +45,6 @@ void MX_DMA_Init(void)
   LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_DMA1);
 
   /* DMA interrupt init */
-  /* DMA1_Stream5_IRQn interrupt configuration */
-  NVIC_SetPriority(DMA1_Stream5_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),0, 0));
-  NVIC_EnableIRQ(DMA1_Stream5_IRQn);
   /* DMA1_Stream6_IRQn interrupt configuration */
   NVIC_SetPriority(DMA1_Stream6_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),0, 0));
   NVIC_EnableIRQ(DMA1_Stream6_IRQn);
@@ -59,20 +56,34 @@ void MX_DMA_Init(void)
 
 /* USER CODE BEGIN 2 */
 
-void DMA_Stream_Stop(DMA_TypeDef* DMAx, uint32_t Stream)
+void DMA_resetAllIT(DMA_TypeDef* DMAx)
 {
-  LL_DMA_DisableStream(DMAx, Stream);
-  while(LL_DMA_IsEnabledStream(DMAx, Stream)) {}
+  WRITE_REG(DMAx->LIFCR , 0xFFFFFFFFUL);
+  WRITE_REG(DMAx->HIFCR , 0xFFFFFFFFUL);
+}
 
+void DMA_startStream(DMA_TypeDef* DMAx, uint32_t Stream, uint32_t BUF_SIZE)
+{
+
+  if(BUF_SIZE != 0)
+  {
+    LL_DMA_SetDataLength(DMAx, Stream, BUF_SIZE);
   }
 
-void DMA_Stream_Start(DMA_TypeDef* DMAx, uint32_t Stream, uint32_t BUF_SIZE)
-{
-  WRITE_REG(DMA1->HIFCR , 0xFFFFFFFFUL);
-  LL_DMA_SetDataLength(DMAx, Stream, BUF_SIZE);
+  DMA_resetAllIT(DMAx);
 
-  LL_DMA_EnableStream(DMAx, Stream);
-  while(!LL_DMA_IsEnabledStream(DMA1, LL_DMA_STREAM_5)) {}
+  while(!LL_DMA_IsEnabledStream(DMAx, Stream))
+  {
+    LL_DMA_EnableStream(DMAx, Stream);
+  }
+}
+
+void DMA_stopStream(DMA_TypeDef* DMAx, uint32_t Stream)
+{
+  while(LL_DMA_IsEnabledStream(DMAx, Stream))
+  {
+    LL_DMA_DisableStream(DMAx, Stream);
+  }
 }
 
 /* USER CODE END 2 */

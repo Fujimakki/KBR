@@ -33,21 +33,33 @@ extern "C" {
 #include <stdbool.h>
 #include <strings.h>
 
-
 /* USER CODE END Includes */
 
 /* USER CODE BEGIN Private defines */
 
-enum PacketType
+#define UART_PREHEADER 0xAA
+
+#define UART_HEADER_AWS 0x31
+
+#define UART_HEADER_RAW 0x51
+#define UART_HEADER_FFT 0x52
+
+#define UART_ADC_PAYLOAD_SIZE (FFT_SIZE << 1)
+#define UART_FFT_PAYLOAD_SIZE FFT_SIZE
+
+typedef struct __attribute__((packed)) // __attribute__((packed)) is used to remove the paddings
 {
+  uint8_t header[2];
+  uint16_t payload[UART_ADC_PAYLOAD_SIZE];
+  uint32_t crc;
+}UART_ADC_TxPacket;
 
-  // TODO Find another way to use the original enums
-
-  AWS = 0x31, // New AVRG_WINDOW_SIZE value
-  RAW = 0x51, // Raw data from ADC
-  FFT = 0x52  // Calculated FFT magnitudes
-
-};
+typedef struct __attribute__((packed))  // __attribute__((packed)) is used to remove the paddings
+{
+  uint8_t header[2];
+  float32_t payload[FFT_SIZE];
+  uint32_t crc;
+} UART_FFT_TxPacket;
 
 /* USER CODE END Private defines */
 
@@ -55,8 +67,7 @@ void MX_USART2_UART_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 
-void sendUart(uint32_t* buffer, uint16_t size, uint8_t type);
-bool readUart(uint8_t *buffer, uint16_t size);
+void UART_send(uint8_t* const packet, uint16_t bytesCount);
 
 /* USER CODE END Prototypes */
 

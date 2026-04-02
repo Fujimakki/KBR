@@ -203,19 +203,6 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
-  * @brief This function handles DMA1 stream5 global interrupt.
-  */
-void DMA1_Stream5_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Stream5_IRQn 0 */
-
-  /* USER CODE END DMA1_Stream5_IRQn 0 */
-  /* USER CODE BEGIN DMA1_Stream5_IRQn 1 */
-
-  /* USER CODE END DMA1_Stream5_IRQn 1 */
-}
-
-/**
   * @brief This function handles DMA1 stream6 global interrupt.
   */
 void DMA1_Stream6_IRQHandler(void)
@@ -235,27 +222,6 @@ void USART2_IRQHandler(void)
 {
   /* USER CODE BEGIN USART2_IRQn 0 */
 
-  if(LL_USART_IsActiveFlag_IDLE(USART2))
-  {
-    DMA_Stream_Stop(DMA1, LL_DMA_STREAM_5);
-
-    LL_USART_ClearFlag_IDLE(USART2);
-    if(LL_USART_IsActiveFlag_ORE(USART2))
-    {
-      LL_USART_ClearFlag_ORE(USART2);
-    }
-
-    extern const uint8_t UART_RX_DMA_BUF_SIZE;
-    uint8_t* uartRxDmaBuf = (uint8_t*)calloc(UART_RX_DMA_BUF_SIZE, sizeof(uint8_t));
-    if(readUart(uartRxDmaBuf, UART_RX_DMA_BUF_SIZE))
-    {
-      sendUart((uint32_t*)uartRxDmaBuf, UART_RX_DMA_BUF_SIZE, AWS);
-    }
-    free(uartRxDmaBuf);
-
-    DMA_Stream_Start(DMA1, LL_DMA_STREAM_5, UART_RX_DMA_BUF_SIZE);
-  }
-
   /* USER CODE END USART2_IRQn 0 */
   /* USER CODE BEGIN USART2_IRQn 1 */
 
@@ -268,34 +234,44 @@ void USART2_IRQHandler(void)
 void DMA2_Stream0_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA2_Stream0_IRQn 0 */
-  extern bool is_fft_ready;
+  extern bool readyRaw;
+  extern uint16_t DMA_ADC_buffer[];
+  extern const size_t DMA_ADC_BUFFER_SIZE;
+  extern uint16_t *ADC_payload;
 
-  if(LL_DMA_IsActiveFlag_TC0(DMA2) && is_fft_ready)
+  if(LL_DMA_IsActiveFlag_HT0(DMA2))
   {
-    extern const float QUANT_STEP;
-    extern const uint16_t ADC_DMA_BUF_SIZE;
-    extern uint16_t adcDmaBuf[];
+    LL_DMA_ClearFlag_HT0(DMA2);
 
-    sendUart((uint32_t*) adcDmaBuf, ADC_DMA_BUF_SIZE, RAW);
-
-    extern float32_t arrFAdc[];
-    for(uint16_t i = 0; i < ADC_DMA_BUF_SIZE / 2; i++)
+    if(!readyRaw)
     {
-      arrFAdc[i] = QUANT_STEP * adcDmaBuf[i];
-    }
+      memcpy(ADC_payload, DMA_ADC_buffer, DMA_ADC_BUFFER_SIZE);
+      /*
+       * As long as DMA_ADC_buffer is a uint16_t array, DMA_ADC_BUFFER_SIZE is only half the number of all bytes.
+       * */
 
-    LL_DMA_ClearFlag_TC0(DMA2);
-    is_fft_ready = false;
+      readyRaw = true;
+    }
   }
+
+  if(LL_DMA_IsActiveFlag_TC0(DMA2))
+  {
+    LL_DMA_ClearFlag_TC0(DMA2);
+
+    if(!readyRaw)
+    {
+      memcpy(ADC_payload, &DMA_ADC_buffer[DMA_ADC_BUFFER_SIZE >> 1], DMA_ADC_BUFFER_SIZE);
+      /*
+       * As long as DMA_ADC_buffer is a uint16_t array, DMA_ADC_BUFFER_SIZE is only half the number of all bytes.
+       * */
+
+      readyRaw = true;
+    }
+  }
+
 
   /* USER CODE END DMA2_Stream0_IRQn 0 */
   /* USER CODE BEGIN DMA2_Stream0_IRQn 1 */
-
-  if(LL_DMA_IsActiveFlag_TC6(DMA1))
-  {
-    LL_DMA_DisableStream(DMA1, LL_DMA_STREAM_6);
-    LL_DMA_ClearFlag_TC6(DMA1);
-  }
 
   /* USER CODE END DMA2_Stream0_IRQn 1 */
 }

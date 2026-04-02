@@ -42,8 +42,9 @@ void MX_DMA_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 
-void DMA_Stream_Stop(DMA_TypeDef* DMAx, uint32_t Stream);
-void DMA_Stream_Start(DMA_TypeDef* DMAx, uint32_t Stream, uint32_t BUF_SIZE);
+void DMA_resetAllIT(DMA_TypeDef* DMAx);
+void DMA_startStream(DMA_TypeDef* DMAx, uint32_t Stream, uint32_t BUF_SIZE);
+void DMA_stopStream(DMA_TypeDef* DMAx, uint32_t Stream);
 
 /* USER CODE END Prototypes */
 
