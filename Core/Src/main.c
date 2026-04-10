@@ -4,12 +4,17 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
+#include "arm_math_types.h"
 #include "crc.h"
 #include "dma.h"
 #include "stm32f4xx_ll_adc.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -35,22 +40,14 @@
 
 /* USER CODE BEGIN PV */
 
-// The size of the ADC averaging window
+uint32_t DMA_ADC_buffer[UART_ADC_PAYLOAD_U16_SIZE];
+volatile uint32_t* DMA_ADC_bufferHalf;
 
-uint16_t DMA_ADC_buffer[UART_ADC_PAYLOAD_SIZE << 1];
-const size_t DMA_ADC_BUFFER_SIZE = UART_ADC_PAYLOAD_SIZE << 1;
+static uint8_t ADC_txPacket[UART_ADC_PACKET_BYTE_SIZE] = { UART_PREHEADER, UART_HEADER_RAW };
+static uint8_t FFT_txPacket[UART_FFT_PACKET_BYTE_SIZE] = { UART_PREHEADER, UART_HEADER_FFT };
 
-static UART_ADC_TxPacket ADC_txPacket = { .header = { UART_PREHEADER, UART_HEADER_RAW } };
-static const uint32_t ADC_TX_PACKET_SIZE = sizeof(ADC_txPacket);
-uint16_t* const ADC_payload = ADC_txPacket.payload;
-
-static UART_FFT_TxPacket FFT_txPacket = { .header = { UART_PREHEADER, UART_HEADER_FFT } };
-static const uint32_t FFT_TX_PACKET_SIZE = sizeof(FFT_txPacket);
-
-static const float32_t QUANT_STEP = 3.3 / ((1 << 12) - 1);
-static float32_t ADC_voltData[UART_ADC_PAYLOAD_SIZE];
-
-volatile bool readyRaw = false;
+static const float32_t QUANT_STEP = 3.3f / ((1 << 12) - 1);
+static float32_t ADC_voltData[UART_ADC_PAYLOAD_U16_SIZE];
 
 #ifdef DBG
 uint32_t delta_time[5];
@@ -120,7 +117,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   LL_DMA_SetMemoryAddress(DMA2, LL_DMA_STREAM_0, (uint32_t)DMA_ADC_buffer);
-  LL_DMA_SetDataLength(DMA2, LL_DMA_STREAM_0, DMA_ADC_BUFFER_SIZE >> 1);
+  LL_DMA_SetDataLength(DMA2, LL_DMA_STREAM_0, UART_ADC_PAYLOAD_U16_SIZE);
 
   DMA_startStream(DMA2, LL_DMA_STREAM_0, 0);
 
@@ -142,40 +139,32 @@ int main(void)
   while (1) {
     static volatile bool readyFft = false;
 
-    if(readyRaw)
+    if(DMA_ADC_bufferHalf)
     {
-      uint32_t primask_bit = __get_PRIMASK(); // Remeber the state of primask
-      __disable_irq();  // Disable interrupts
-
-      UART_send((uint8_t*)(&ADC_txPacket), ADC_TX_PACKET_SIZE);
+      memcpy(ADC_txPacket + UART_HEADER_BYTE_SIZE, (const void *)DMA_ADC_bufferHalf, UART_ADC_PAYLOAD_BYTE_SIZE);
+      UART_send(ADC_txPacket, UART_ADC_PACKET_BYTE_SIZE);
 
       if(!readyFft)
       {
-        for(uint32_t i = 0; i < UART_FFT_PAYLOAD_SIZE; i++)
+        const size_t ADC_payloadHalfSize = UART_ADC_PAYLOAD_U16_SIZE >> 1;
+        for(uint32_t i = 0; i < ADC_payloadHalfSize; i++)
         {
-          ADC_voltData[i] = ADC_txPacket.payload[i << 1] * QUANT_STEP;
-          ADC_voltData[UART_FFT_PAYLOAD_SIZE + i] = ADC_txPacket.payload[(i << 1) + 1] * QUANT_STEP;
+          ADC_voltData[i] = (*DMA_ADC_bufferHalf & 0xFFFF) * QUANT_STEP;
+          ADC_voltData[ADC_payloadHalfSize + i] = (*DMA_ADC_bufferHalf >> 16) * QUANT_STEP;
+          DMA_ADC_bufferHalf ++;
         }
         readyFft = true;
       }
 
-      readyRaw = false;
-
-      LL_DMA_ClearFlag_HT0(DMA2);
-      LL_DMA_ClearFlag_TC0(DMA2);
-
-      if(!primask_bit)
-      {
-        __enable_irq(); // Enable interrupts if they were enabled before the function
-      }
+      DMA_ADC_bufferHalf = NULL;
     }
 
     if(readyFft)
     {
-      fftMagCalc(&S, ADC_voltData, FFT_txPacket.payload);
-      fftMagCalc(&S, ADC_voltData + FFT_SIZE, FFT_txPacket.payload + (FFT_SIZE >> 1));
-      
-      UART_send((uint8_t*)(&FFT_txPacket), FFT_TX_PACKET_SIZE);
+      fftMagCalc(&S, ADC_voltData, (float32_t*)(FFT_txPacket + UART_HEADER_BYTE_SIZE));
+      fftMagCalc(&S, ADC_voltData + FFT_SIZE, (float32_t*)(FFT_txPacket + UART_HEADER_BYTE_SIZE + (UART_FFT_PAYLOAD_BYTE_SIZE >> 1)));
+
+      UART_send(FFT_txPacket, UART_FFT_PACKET_BYTE_SIZE);
 
       readyFft = false;
     }

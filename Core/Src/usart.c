@@ -23,6 +23,7 @@
 /* USER CODE BEGIN 0 */
 
 #include "dma.h"
+#include <string.h>
 
 /* USER CODE END 0 */
 
@@ -111,7 +112,7 @@ uint32_t CRC_calc(const uint32_t *const payload, uint16_t pldSize)
   LL_CRC_ResetCRCCalculationUnit(CRC);
 
   for (uint16_t i = 0; i < pldSize; i++) {
-    uint32_t data = payload[i];
+    uint32_t data = (payload[i]);
     LL_CRC_FeedData32(CRC, __RBIT(data));
   }
 
@@ -122,8 +123,8 @@ uint32_t CRC_calc(const uint32_t *const payload, uint16_t pldSize)
 
 void UART_send(uint8_t* const packet, uint16_t bytesCount)
 {
-  uint32_t primask_bit = __get_PRIMASK(); // Remeber the state of primask
-  __disable_irq();  // Disable interrupts
+  // uint32_t primask_bit = __get_PRIMASK(); // Remeber the state of primask
+  // __disable_irq();  // Disable interrupts
 
   uint32_t crcValue = CRC_calc((uint32_t* const)(packet + 2), (bytesCount - 6) / sizeof(uint32_t));
   memcpy(packet + bytesCount - sizeof(crcValue), &crcValue, sizeof(crcValue));
@@ -162,10 +163,10 @@ void UART_send(uint8_t* const packet, uint16_t bytesCount)
   delta_time[4] = DWT->CYCCNT;
 #endif // DBG
 
-  if(!primask_bit)
-  {
-    __enable_irq(); // Enable interrupts if they were enabled before the function
-  }
+  // if(!primask_bit)
+  // {
+  //   __enable_irq(); // Enable interrupts if they were enabled before the function
+  // }
 }
 
 /* USER CODE END 1 */

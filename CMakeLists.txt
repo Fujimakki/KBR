@@ -40,29 +40,22 @@ add_executable(${CMAKE_PROJECT_NAME})
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
+add_subdirectory(Drivers/CMSIS/DSP)
+
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 				# Add user defined library search paths
-)
-
-file(GLOB DSP_SOURCES
-				${CMSIS_DSP}/Source/TransformFunctions/*.c		# cfft and rfft functions
-				${CMSIS_DSP}/Source/ComplexMathFunctions/*.c
-				${CMSIS_DSP}/Source/CommonTables/*.c
 )
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 				# Add user sources here
 				${PROJECT_SOURCE_DIR}/Core/Src/fft_mag.c
-				${DSP_SOURCES}
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 				# Add user defined include paths
-				${CMSIS_DSP}/Include/
-				${CMSIS_DSP}/PrivateInclude/
 )
 
 # Add project symbols (macros)
@@ -78,12 +71,13 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 				stm32cubemx
 
 				# Add user defined libraries
+				CMSIS-DSP
 )
 
 add_custom_target(flash
-    COMMAND openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program ${CMAKE_BINARY_DIR}/${PROJECT_NAME}.elf verify reset exit"
-    DEPENDS ${PROJECT_NAME}
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    COMMENT "Flashing firmware to STM32..."
-    USES_TERMINAL
+				COMMAND openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c "program ${CMAKE_BINARY_DIR}/${PROJECT_NAME}.elf verify reset exit"
+				DEPENDS ${PROJECT_NAME}
+				WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+				COMMENT "Flashing firmware to STM32..."
+				USES_TERMINAL
 )

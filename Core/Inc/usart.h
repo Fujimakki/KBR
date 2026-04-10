@@ -21,6 +21,7 @@
 #ifndef __USART_H__
 #define __USART_H__
 
+#include <stdint.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,35 +32,27 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 
 #include <stdbool.h>
-#include <strings.h>
 
 /* USER CODE END Includes */
 
 /* USER CODE BEGIN Private defines */
 
+#define UART_HEADER_BYTE_SIZE 2
 #define UART_PREHEADER 0xAA
-
 #define UART_HEADER_AWS 0x31
-
 #define UART_HEADER_RAW 0x51
 #define UART_HEADER_FFT 0x52
 
-#define UART_ADC_PAYLOAD_SIZE (FFT_SIZE << 1)
-#define UART_FFT_PAYLOAD_SIZE FFT_SIZE
+#define UART_ADC_PAYLOAD_U16_SIZE (FFT_SIZE << 1)
+#define UART_ADC_PAYLOAD_BYTE_SIZE (UART_ADC_PAYLOAD_U16_SIZE << 1)
 
-typedef struct __attribute__((packed)) // __attribute__((packed)) is used to remove the paddings
-{
-  uint8_t header[2];
-  uint16_t payload[UART_ADC_PAYLOAD_SIZE];
-  uint32_t crc;
-}UART_ADC_TxPacket;
+#define UART_FFT_PAYLOAD_F_SIZE ((UART_ADC_PAYLOAD_U16_SIZE >> 1) + 2)
+#define UART_FFT_PAYLOAD_BYTE_SIZE (UART_FFT_PAYLOAD_F_SIZE << 2)
 
-typedef struct __attribute__((packed))  // __attribute__((packed)) is used to remove the paddings
-{
-  uint8_t header[2];
-  float32_t payload[FFT_SIZE];
-  uint32_t crc;
-} UART_FFT_TxPacket;
+#define UART_CRC_BYTE_SIZE 4
+
+#define UART_ADC_PACKET_BYTE_SIZE (UART_HEADER_BYTE_SIZE + UART_ADC_PAYLOAD_BYTE_SIZE + UART_CRC_BYTE_SIZE)
+#define UART_FFT_PACKET_BYTE_SIZE (UART_HEADER_BYTE_SIZE + UART_FFT_PAYLOAD_BYTE_SIZE + UART_CRC_BYTE_SIZE)
 
 /* USER CODE END Private defines */
 

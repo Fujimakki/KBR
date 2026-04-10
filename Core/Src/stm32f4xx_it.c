@@ -25,6 +25,7 @@
 
 #include "dma.h"
 #include "usart.h"
+#include <stdint.h>
 
 /* USER CODE END Includes */
 
@@ -234,41 +235,31 @@ void USART2_IRQHandler(void)
 void DMA2_Stream0_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA2_Stream0_IRQn 0 */
-  extern bool readyRaw;
-  extern uint16_t DMA_ADC_buffer[];
-  extern const size_t DMA_ADC_BUFFER_SIZE;
-  extern uint16_t *ADC_payload;
+  if(LL_DMA_IsActiveFlag_TC0(DMA2))
+  {
+    extern uint32_t* DMA_ADC_bufferHalf;
+
+    LL_DMA_ClearFlag_TC0(DMA2);
+
+    if(!DMA_ADC_bufferHalf)
+    {
+      extern uint32_t DMA_ADC_buffer[];
+      DMA_ADC_bufferHalf = &DMA_ADC_buffer[UART_ADC_PAYLOAD_U16_SIZE >> 1];
+    }
+  }
 
   if(LL_DMA_IsActiveFlag_HT0(DMA2))
   {
+    extern uint32_t* DMA_ADC_bufferHalf;
+
     LL_DMA_ClearFlag_HT0(DMA2);
 
-    if(!readyRaw)
+    if(!DMA_ADC_bufferHalf)
     {
-      memcpy(ADC_payload, DMA_ADC_buffer, DMA_ADC_BUFFER_SIZE);
-      /*
-       * As long as DMA_ADC_buffer is a uint16_t array, DMA_ADC_BUFFER_SIZE is only half the number of all bytes.
-       * */
-
-      readyRaw = true;
+      extern uint32_t DMA_ADC_buffer[];
+      DMA_ADC_bufferHalf = DMA_ADC_buffer;
     }
   }
-
-  if(LL_DMA_IsActiveFlag_TC0(DMA2))
-  {
-    LL_DMA_ClearFlag_TC0(DMA2);
-
-    if(!readyRaw)
-    {
-      memcpy(ADC_payload, &DMA_ADC_buffer[DMA_ADC_BUFFER_SIZE >> 1], DMA_ADC_BUFFER_SIZE);
-      /*
-       * As long as DMA_ADC_buffer is a uint16_t array, DMA_ADC_BUFFER_SIZE is only half the number of all bytes.
-       * */
-
-      readyRaw = true;
-    }
-  }
-
 
   /* USER CODE END DMA2_Stream0_IRQn 0 */
   /* USER CODE BEGIN DMA2_Stream0_IRQn 1 */
