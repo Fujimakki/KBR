@@ -6,6 +6,7 @@
 #include "adc.h"
 #include "crc.h"
 #include "dma.h"
+#include "stm32f4xx_ll_adc.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -115,14 +116,17 @@ int main(void)
   MX_USART2_UART_Init();
   MX_CRC_Init();
   MX_TIM1_Init();
+  MX_ADC2_Init();
   /* USER CODE BEGIN 2 */
 
   LL_DMA_SetMemoryAddress(DMA2, LL_DMA_STREAM_0, (uint32_t)DMA_ADC_buffer);
-  LL_DMA_SetDataLength(DMA2, LL_DMA_STREAM_0, DMA_ADC_BUFFER_SIZE);
+  LL_DMA_SetDataLength(DMA2, LL_DMA_STREAM_0, DMA_ADC_BUFFER_SIZE >> 1);
 
   DMA_startStream(DMA2, LL_DMA_STREAM_0, 0);
 
   LL_ADC_Enable(ADC1);
+  LL_ADC_Enable(ADC2);
+  while(!LL_ADC_IsEnabled(ADC1) && !LL_ADC_IsEnabled(ADC2)) {}
   LL_mDelay(1);
 
   if(LL_ADC_REG_IsTriggerSourceSWStart(ADC1))
@@ -170,11 +174,7 @@ int main(void)
     {
       fftMagCalc(&S, ADC_voltData, FFT_txPacket.payload);
       fftMagCalc(&S, ADC_voltData + FFT_SIZE, FFT_txPacket.payload + (FFT_SIZE >> 1));
-      /*for(int i = 0; i < FFT_SIZE; i++)
-      {
-        float value = (float)i + 1.0f;
-        memcpy(&FFT_txPacket.payload[(FFT_SIZE >> 1) + i], &value, sizeof(value));
-      }*/
+      
       UART_send((uint8_t*)(&FFT_txPacket), FFT_TX_PACKET_SIZE);
 
       readyFft = false;
